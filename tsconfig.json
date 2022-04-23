@@ -1,0 +1,10 @@
+{
+  "extends": "./node_modules/gts/tsconfig-google.json",
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "files": [],
+  "include": ["src/**/*", "test/**/*", "types/opentype.d.ts"]
+}
