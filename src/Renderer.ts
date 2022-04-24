@@ -19,20 +19,6 @@ class Renderer {
   private offscreenFrameBuffer: twgl.FramebufferInfo;
   private onUpdateSubscription: VoidFunction | null = null;
 
-  stats = {
-    ft: 0, // time between frame begin and end (frame time)
-    dt: 0, // time between frame begin points (delta time)
-    fps: 0, // Frames Per Second
-    lastTime: 0, // last render timestamp
-  };
-
-  props = {
-    color: [1.0, 1.0, 1.0, 1.0] as Tuple<number, 4>,
-    sinOffset: [2, 4],
-    timeMultiplier: 1.0,
-    time: 1000,
-  };
-
   constructor(private canvas: HTMLCanvasElement, private gl: WebGL2RenderingContext) {
     this.render = this.render.bind(this);
 
@@ -139,14 +125,9 @@ class Renderer {
     }
   }
 
-  render(time: number): void {
+  render(): void {
     this.resizeCanvasToDisplaySize(this.canvas);
-
-    const t0 = performance.now();
     const gl = this.gl;
-    this.stats.dt = time - this.stats.lastTime;
-    this.props.time += this.stats.dt * this.props.timeMultiplier;
-    this.stats.fps = 1000.0 / this.stats.dt; // approximation from delta time, you can count frames in second instead
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.offscreenFrameBuffer.framebuffer);
     gl.clearColor(0.0, 0.0, 0.0, 0.0); 
@@ -179,7 +160,6 @@ class Renderer {
     ]
 
     for (var i = 0; i < fontSizesInPixels.length; i++) {
-
       for (var jitterId = 0; jitterId < jitterPattern.length; jitterId++) {
         const jitterPosition = [
           jitterPattern[jitterId][0] / this.offscreenFrameBuffer.width + textOffsetsScreenSpace[i][0],
@@ -206,7 +186,7 @@ class Renderer {
         twgl.setUniforms(this.glyphSmoothTriangleProgram, glyphUniforms);
         twgl.setBuffersAndAttributes(gl, this.glyphSmoothTriangleProgram, this.glyphSmoothTriangleBuffer);
         twgl.drawBufferInfo(gl, this.glyphSmoothTriangleBuffer, gl.TRIANGLES)
-    }
+      }
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -224,10 +204,7 @@ class Renderer {
     twgl.setBuffersAndAttributes(gl, this.resolveProgram, this.fullscreenTriangle);
     twgl.drawBufferInfo(gl, this.fullscreenTriangle, gl.TRIANGLES);
 
-    this.stats.lastTime = time;
     this.animationHandler = requestAnimationFrame(this.render);
-    this.stats.ft = performance.now() - t0;
-
     if (this.onUpdateSubscription !== null) this.onUpdateSubscription();
   }
 }
