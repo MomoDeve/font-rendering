@@ -21,7 +21,7 @@ class Renderer {
     // load font and generate text vertices
     // format of vertex is [position.x, position.y, barycentric.s, barycentric.t]
 
-    const fontRawData = require('arraybuffer-loader!./res/TimesNewRoman.ttf');
+    const fontRawData = require('arraybuffer-loader!./res/Calibri.ttf');
     const fontLoader = new FontLoader(fontRawData);
     const vertexData = fontLoader.generateVertexData('Hello World!');
 
@@ -130,10 +130,10 @@ class Renderer {
 
     // used to render multiple text lines with different font sizes
     const fontSizesInPixels = [
-      16, 32, 72, 120, 160
+      8, 16, 32, 72, 120, 160
     ];
     const textOffsetsScreenSpace = [
-      [-0.95, 0.9], [-0.95, 0.7], [-0.95, 0.4], [-0.95, 0.0], [-0.95, -0.5]
+      [-0.95, 0.95], [-0.95, 0.859], [-0.95, 0.7], [-0.95, 0.4], [-0.95, 0.0], [-0.95, -0.5]
     ];
 
     const jitterPattern = [
