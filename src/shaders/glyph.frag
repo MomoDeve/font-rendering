@@ -12,6 +12,7 @@ void main()
   float x = vs_out_barycentric.x;
   float y = vs_out_barycentric.y;
   
+  // factor is used for smooth vertices to discard pixels which are off-curve
   vec3 factor = (x * x - y <= 0.0) ? vec3(1.0 / 255.0) : vec3(0.0);
   fs_out_color = vec4(uSampleMask * factor, 1.0);
 }
