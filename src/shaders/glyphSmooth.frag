@@ -10,6 +10,6 @@ void main()
   float t = vs_out_barycentric.x;
   float s = vs_out_barycentric.y;
 
-  float factor = ((s * 0.5 + t) * (s * 0.5 + t) < t) ? 1.0 : 0.0;
-  fs_out_color = vec4(1.0, 1.0, 1.0, factor / 255.0);
+  float factor = ((s * 0.5 + t) * (s * 0.5 + t) < t) ? 1.0 / 255.0: 0.0;
+  fs_out_color = vec4(1.0, 1.0, 1.0, factor);
 }

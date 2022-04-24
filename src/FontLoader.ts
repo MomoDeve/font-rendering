@@ -7,17 +7,16 @@ class FontLoader {
     this.font = opentype.parse(fontData);
   }
 
-  normalizeVertexData(vertexData: number[], metrics: opentypejs.Metrics): void {
-    for (var i = 0; i < vertexData.length; i += 2) {
-      vertexData[i + 0] = (vertexData[i + 0] - metrics.xMin) / (metrics.xMax - metrics.xMin);
-      vertexData[i + 1] = (vertexData[i + 1] - metrics.yMin) / (metrics.yMax - metrics.yMin);
+  normalizeVertexData(vertices: number[], minX: number, minY: number, maxX: number, maxY: number): void {
+    const normDim = maxY - minY;
+    for (var i = 0; i < vertices.length; i += 2) {
+      vertices[i] = (vertices[i] - minX) / normDim;
+      vertices[i + 1] = (minY - vertices[i + 1]) / normDim;
     }
   }
 
-  getGlyphVertexData(char: string): { solid: number[], smooth: number[] } {
-    const glyph = this.font.charToGlyph(char);
-
-    var commands = glyph.path.commands;
+  getTextVertexData(text: string): { solid: number[], smooth: number[] } {
+    var commands = this.font.getPath(text, 0, 0, 1).commands;
 
     var solidTriangles = Array.of<number>();
     var smoothTriangles = Array.of<number>();
@@ -51,21 +50,19 @@ class FontLoader {
       }
     }
 
-    const metrics = glyph.getMetrics();
-    this.normalizeVertexData(solidTriangles, metrics);
-    this.normalizeVertexData(smoothTriangles, metrics);
+    var minX = solidTriangles[0], minY = solidTriangles[1];
+    var maxX = solidTriangles[0], maxY = solidTriangles[1];
+    for (var i = 0; i < solidTriangles.length; i += 2) {
+      minX = Math.min(solidTriangles[i + 0], minX);
+      minY = Math.min(solidTriangles[i + 1], minY);
+      maxX = Math.max(solidTriangles[i + 0], maxX);
+      maxY = Math.max(solidTriangles[i + 1], maxY);
+    }
+
+    this.normalizeVertexData(solidTriangles, minX, minY, maxX, maxY);
+    this.normalizeVertexData(smoothTriangles, minX, minY, maxX, maxY);
 
     return { solid: solidTriangles, smooth: smoothTriangles };
-
-    // const contours = glyph.getContours();
-    // for (var contourId = 0; contourId < contours.length; contourId++) {
-    //   const points = contours[contourId];
-    //   for (var i = 0; i < points.length; i++) {
-    //     points[i].x = (points[i].x - metrics.xMin) / (metrics.xMax - metrics.xMin);
-    //     points[i].y = (points[i].y - metrics.yMin) / (metrics.yMax - metrics.yMin);
-    //   }
-    // }
-    // return contours;
   }
 
 }
