@@ -161,27 +161,52 @@ class Renderer {
     const textOffsetsScreenSpace = [
       [-0.95, 0.9], [-0.95, 0.7], [-0.95, 0.4], [-0.95, 0.0], [-0.95, -0.5]
     ];
+    const jitterPattern = [
+      [-1.0 / 12.0, -5.0 / 12.0],
+      [ 1.0 / 12.0,  1.0 / 12.0],
+      [ 3.0 / 12.0, -1.0 / 12.0],
+      [ 5.0 / 12.0,  5.0 / 12.0],
+      [ 7.0 / 12.0, -3.0 / 12.0],
+      [ 9.0 / 12.0,  3.0 / 12.0],
+    ]
+    const sampleMask = [
+      [ 1.0,  0.0,  0.0],
+      [16.0,  0.0,  0.0],
+      [ 0.0,  1.0,  0.0],
+      [ 0.0, 16.0,  0.0],
+      [ 0.0,  0.0,  1.0],
+      [ 0.0,  0.0, 16.0]
+    ]
 
     for (var i = 0; i < fontSizesInPixels.length; i++) {
-      const glyphUniforms = {
-        uFontScale: [
-          2.0 * fontSizesInPixels[i] / this.offscreenFrameBuffer.width, 
-          2.0 * fontSizesInPixels[i] / this.offscreenFrameBuffer.height
-        ],
-        uTextPosition: textOffsetsScreenSpace[i]
-      }
 
-      gl.useProgram(this.glyphSolidTriangleProgram.program);
+      for (var jitterId = 0; jitterId < jitterPattern.length; jitterId++) {
+        const jitterPosition = [
+          jitterPattern[jitterId][0] / this.offscreenFrameBuffer.width + textOffsetsScreenSpace[i][0],
+          jitterPattern[jitterId][1] / this.offscreenFrameBuffer.height + textOffsetsScreenSpace[i][1]
+        ]
+        
+        const glyphUniforms = {
+          uSampleMask: sampleMask[jitterId],
+          uFontScale: [
+            2.0 * fontSizesInPixels[i] / this.offscreenFrameBuffer.width, 
+            2.0 * fontSizesInPixels[i] / this.offscreenFrameBuffer.height
+          ],
+          uTextPosition: jitterPosition
+        }
 
-      twgl.setUniforms(this.glyphSolidTriangleProgram, glyphUniforms);
-      twgl.setBuffersAndAttributes(gl, this.glyphSolidTriangleProgram, this.glyphSolidTriangleBuffer);
-      twgl.drawBufferInfo(gl, this.glyphSolidTriangleBuffer, gl.TRIANGLES);
+        gl.useProgram(this.glyphSolidTriangleProgram.program);
 
-      gl.useProgram(this.glyphSmoothTriangleProgram.program);
+        twgl.setUniforms(this.glyphSolidTriangleProgram, glyphUniforms);
+        twgl.setBuffersAndAttributes(gl, this.glyphSolidTriangleProgram, this.glyphSolidTriangleBuffer);
+        twgl.drawBufferInfo(gl, this.glyphSolidTriangleBuffer, gl.TRIANGLES);
 
-      twgl.setUniforms(this.glyphSmoothTriangleProgram, glyphUniforms);
-      twgl.setBuffersAndAttributes(gl, this.glyphSmoothTriangleProgram, this.glyphSmoothTriangleBuffer);
-      twgl.drawBufferInfo(gl, this.glyphSmoothTriangleBuffer, gl.TRIANGLES)
+        gl.useProgram(this.glyphSmoothTriangleProgram.program);
+
+        twgl.setUniforms(this.glyphSmoothTriangleProgram, glyphUniforms);
+        twgl.setBuffersAndAttributes(gl, this.glyphSmoothTriangleProgram, this.glyphSmoothTriangleBuffer);
+        twgl.drawBufferInfo(gl, this.glyphSmoothTriangleBuffer, gl.TRIANGLES)
+    }
     }
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
