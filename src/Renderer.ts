@@ -1,8 +1,6 @@
 import * as twgl from 'twgl.js';
-import glyphFS from './shaders/glyphSolid.frag';
-import glyphVS from './shaders/glyphSolid.vert';
-import glyphSmoothFS from './shaders/glyphSmooth.frag';
-import glyphSmoothVS from './shaders/glyphSmooth.vert';
+import glyphFS from './shaders/glyph.frag';
+import glyphVS from './shaders/glyph.vert';
 import resolveFS from './shaders/resolve.frag';
 import resolveVS from './shaders/resolve.vert';
 import type {Tuple} from './utils/types';
@@ -11,10 +9,8 @@ import {FontLoader} from './FontLoader';
 class Renderer {
   private animationHandler = -1;
   private resolveProgram: twgl.ProgramInfo;
-  private glyphSolidTriangleProgram: twgl.ProgramInfo;
-  private glyphSmoothTriangleProgram: twgl.ProgramInfo;
-  private glyphSolidTriangleBuffer: twgl.BufferInfo;
-  private glyphSmoothTriangleBuffer: twgl.BufferInfo;
+  private glyphProgram: twgl.ProgramInfo;
+  private glyphBuffer: twgl.BufferInfo;
   private fullscreenTriangle: twgl.BufferInfo;
   private offscreenFrameBuffer: twgl.FramebufferInfo;
   private onUpdateSubscription: VoidFunction | null = null;
@@ -25,31 +21,19 @@ class Renderer {
     const buffer = require('arraybuffer-loader!./res/TimesNewRoman.ttf');
     const fontLoader = new FontLoader(buffer);
     const vertexData = fontLoader.getTextVertexData('Hello World!');
-    // on curve rendering pass
 
-    this.glyphSolidTriangleBuffer = twgl.createBufferInfoFromArrays(gl, {
-      vs_in_position: { numComponents: 2, data: vertexData.solid }
+    // glyph pass data
+
+    this.glyphBuffer = twgl.createBufferInfoFromArrays(gl, {
+      vs_in_position: { numComponents: 4, data: vertexData }
     });
 
-    this.glyphSolidTriangleProgram = twgl.createProgramInfo(gl, 
+    this.glyphProgram = twgl.createProgramInfo(gl, 
       [glyphVS.sourceCode, glyphFS.sourceCode], 
       ['vs_in_position']
     );
 
-    // off curve rendering pass
-
-    this.glyphSmoothTriangleBuffer = twgl.createBufferInfoFromArrays(gl, {
-      vs_in_position: { numComponents: 2, data: vertexData.smooth }
-    });
-
-
-    this.glyphSmoothTriangleProgram = twgl.createProgramInfo(gl, 
-      [glyphSmoothVS.sourceCode,glyphSmoothFS.sourceCode], 
-      ['vs_in_position']
-    );
-
-
-    // resolve pass
+    // resolve pass data
 
     this.offscreenFrameBuffer = this.createOffscreenFrameBuffer(canvas.width, canvas.height);
 
@@ -94,11 +78,18 @@ class Renderer {
     this.onUpdateSubscription = cb;
   }
 
+  destroyOffscreenFrameBuffer(): void {
+    const gl = this.gl;
+    
+    gl.deleteTexture(this.offscreenFrameBuffer.attachments[0]);
+    gl.deleteFramebuffer(this.offscreenFrameBuffer.framebuffer);
+  }
+
   createOffscreenFrameBuffer(width: number, height: number): twgl.FramebufferInfo {
     const gl = this.gl;
 
     const offscreenTexture = twgl.createTexture(gl, {
-      format: gl.RGBA,
+      format: gl.RGB,
       width: width,
       height: height,
     });
@@ -111,8 +102,8 @@ class Renderer {
   }
 
   resizeCanvasToDisplaySize(canvas: HTMLCanvasElement): void {
-    const displayWidth  = canvas.clientWidth;
-    const displayHeight = canvas.clientHeight;
+    const displayWidth  = window.innerWidth;
+    const displayHeight = window.innerHeight;
  
     const needResize = canvas.width  !== displayWidth ||
                        canvas.height !== displayHeight;
@@ -120,7 +111,7 @@ class Renderer {
     if (needResize) {
       canvas.width  = displayWidth;
       canvas.height = displayHeight;
-
+      this.destroyOffscreenFrameBuffer();
       this.offscreenFrameBuffer = this.createOffscreenFrameBuffer(displayWidth, displayHeight);
     }
   }
@@ -129,7 +120,7 @@ class Renderer {
     this.resizeCanvasToDisplaySize(this.canvas);
     const gl = this.gl;
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.offscreenFrameBuffer.framebuffer);
+    twgl.bindFramebufferInfo(gl, this.offscreenFrameBuffer);
     gl.clearColor(0.0, 0.0, 0.0, 0.0); 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -175,17 +166,11 @@ class Renderer {
           uTextPosition: jitterPosition
         }
 
-        gl.useProgram(this.glyphSolidTriangleProgram.program);
+        gl.useProgram(this.glyphProgram.program);
 
-        twgl.setUniforms(this.glyphSolidTriangleProgram, glyphUniforms);
-        twgl.setBuffersAndAttributes(gl, this.glyphSolidTriangleProgram, this.glyphSolidTriangleBuffer);
-        twgl.drawBufferInfo(gl, this.glyphSolidTriangleBuffer, gl.TRIANGLES);
-
-        gl.useProgram(this.glyphSmoothTriangleProgram.program);
-
-        twgl.setUniforms(this.glyphSmoothTriangleProgram, glyphUniforms);
-        twgl.setBuffersAndAttributes(gl, this.glyphSmoothTriangleProgram, this.glyphSmoothTriangleBuffer);
-        twgl.drawBufferInfo(gl, this.glyphSmoothTriangleBuffer, gl.TRIANGLES)
+        twgl.setUniforms(this.glyphProgram, glyphUniforms);
+        twgl.setBuffersAndAttributes(gl, this.glyphProgram, this.glyphBuffer);
+        twgl.drawBufferInfo(gl, this.glyphBuffer, gl.TRIANGLES);
       }
     }
 
