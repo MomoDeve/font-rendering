@@ -8,21 +8,23 @@ out vec4 fs_out_color;
 uniform sampler2D uTex;
 
 void main() {
-  vec4 color = texture(uTex, vs_out_texcoords);
-  
-  const int SAMPLE_COUNT = 6;
-  int samples[SAMPLE_COUNT] = int[SAMPLE_COUNT](
-    int(color.r * 255.0) % 16,
-    int(color.r * 255.0) / 16,
-    int(color.g * 255.0) % 16,
-    int(color.g * 255.0) / 16,
-    int(color.b * 255.0) % 16,
-    int(color.b * 255.0) / 16
-  );
-  float factor = 0.0;
-  for (int i = 0; i < SAMPLE_COUNT; i++) {
-    factor += samples[i] % 2 == 1 ? 1.0 : 0.0;
-  }
+  vec2 uvL = vec2(vs_out_texcoords.x + dFdx(vs_out_texcoords.x), vs_out_texcoords.y);
+  vec2 valueL = texture(uTex, uvL).yz * vec2(255.0);
+  vec2 lowerL = mod(valueL, 16.0);
+  vec2 upperL = (valueL - lowerL) / 16.0;
+  vec2 alphaL = mod(lowerL, 2.0) + mod(upperL, 2.0);
 
-  fs_out_color = vec4(vec3(factor / float(SAMPLE_COUNT)), 1.0);
+  vec3 valueR = texture(uTex, vs_out_texcoords).xyz * vec3(255.0);
+  vec3 lowerR = mod(valueR, 16.0);
+  vec3 upperR = (valueR - lowerR) / 16.0;
+  vec3 alphaR = mod(lowerR, 2.0) + mod(upperR, 2.0);
+
+  vec4 factors = vec4(
+		(alphaR.x + alphaR.y + alphaR.z) / 6.0,
+		(alphaL.y + alphaR.x + alphaR.y) / 6.0,
+		(alphaL.x + alphaL.y + alphaR.x) / 6.0,
+    0.0
+  );
+
+  fs_out_color = vec4(1.0) - factors;
 }
