@@ -117,7 +117,7 @@ declare namespace opentypejs {
       getMetrics(): Metrics;
       getPath(x: number, y: number, fontSize: number): Path;
       name: string;
-      path: Path | { (): Path; };
+      path: Path;
       unicode: number;
       unicodes: number[];
   }
@@ -200,12 +200,12 @@ declare namespace opentypejs {
 
   interface PathCommand {
       type: string;
-      x?: number;
-      y?: number;
-      x1?: number;
-      y1?: number;
-      x2?: number;
-      y2?: number;
+      x: number;
+      y: number;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
   }
 
   interface Point {

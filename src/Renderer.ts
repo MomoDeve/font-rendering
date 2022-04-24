@@ -1,6 +1,8 @@
 import * as twgl from 'twgl.js';
 import glyphFS from './shaders/glyph.frag';
 import glyphVS from './shaders/glyph.vert';
+import glyphSmoothFS from './shaders/glyphSmooth.frag';
+import glyphSmoothVS from './shaders/glyphSmooth.vert';
 import resolveFS from './shaders/resolve.frag';
 import resolveVS from './shaders/resolve.vert';
 import type {Tuple} from './utils/types';
@@ -9,8 +11,10 @@ import {FontLoader} from './FontLoader';
 class Renderer {
   private animationHandler = -1;
   private resolveProgram: twgl.ProgramInfo;
-  private glyphProgram: twgl.ProgramInfo;
-  private glyphBuffer: twgl.BufferInfo;
+  private glyphSolidTriangleProgram: twgl.ProgramInfo;
+  private glyphSmoothTriangleProgram: twgl.ProgramInfo;
+  private glyphSolidTriangleBuffer: twgl.BufferInfo;
+  private glyphSmoothTriangleBuffer: twgl.BufferInfo;
   private fullscreenTriangle: twgl.BufferInfo;
   private offscreenFrameBuffer: twgl.FramebufferInfo;
   private onUpdateSubscription: VoidFunction | null = null;
@@ -32,45 +36,36 @@ class Renderer {
   constructor(private canvas: HTMLCanvasElement, private gl: WebGL2RenderingContext) {
     this.render = this.render.bind(this);
 
-    const buffer = require('arraybuffer-loader!./res/Roboto-Black.ttf');
+    const buffer = require('arraybuffer-loader!./res/TimesNewRoman.ttf');
     const fontLoader = new FontLoader(buffer);
-    const contours = fontLoader.getGlyphNormalizedContours('Q');
+    const vertexData = fontLoader.getGlyphVertexData('Q');
+    // on curve rendering pass
 
-    const glyphData = Array.of<number>();
-    for (var contourId = 0; contourId < contours.length; contourId++) {
-      const points = contours[contourId];
-      const onCurvePoints = points.filter(point => point.onCurve);
-      for (var i = 1; i < onCurvePoints.length; i++) {
-        glyphData.push(0.0);
-        glyphData.push(0.0);
-        glyphData.push(onCurvePoints[i - 1].x);
-        glyphData.push(onCurvePoints[i - 1].y);
-        glyphData.push(onCurvePoints[i].x);
-        glyphData.push(onCurvePoints[i].y);
-      }
-      glyphData.push(0.0);
-      glyphData.push(0.0);
-      glyphData.push(onCurvePoints[onCurvePoints.length - 1].x);
-      glyphData.push(onCurvePoints[onCurvePoints.length - 1].y);
-      glyphData.push(onCurvePoints[0].x);
-      glyphData.push(onCurvePoints[0].y);
-    }
+    this.glyphSolidTriangleBuffer = twgl.createBufferInfoFromArrays(gl, {
+      vs_in_position: { numComponents: 2, data: vertexData.solid }
+    });
 
-    this.offscreenFrameBuffer = this.createOffscreenFrameBuffer(canvas.width, canvas.height);
-
-    this.glyphProgram = twgl.createProgramInfo(gl, 
+    this.glyphSolidTriangleProgram = twgl.createProgramInfo(gl, 
       [glyphVS.sourceCode, glyphFS.sourceCode], 
       ['vs_in_position']
     );
 
-    this.resolveProgram = twgl.createProgramInfo(gl,
-      [resolveVS.sourceCode, resolveFS.sourceCode],
+    // off curve rendering pass
+
+    this.glyphSmoothTriangleBuffer = twgl.createBufferInfoFromArrays(gl, {
+      vs_in_position: { numComponents: 2, data: vertexData.smooth }
+    });
+
+
+    this.glyphSmoothTriangleProgram = twgl.createProgramInfo(gl, 
+      [glyphSmoothVS.sourceCode,glyphSmoothFS.sourceCode], 
       ['vs_in_position']
     );
 
-    this.glyphBuffer = twgl.createBufferInfoFromArrays(gl, {
-      vs_in_position: { numComponents: 2, data: glyphData }
-    });
+
+    // resolve pass
+
+    this.offscreenFrameBuffer = this.createOffscreenFrameBuffer(canvas.width, canvas.height);
 
     this.fullscreenTriangle = twgl.createBufferInfoFromArrays(gl, {
       vs_in_position: { numComponents: 2, data: [
@@ -79,6 +74,11 @@ class Renderer {
          -1,  3
       ]}
     });
+
+    this.resolveProgram = twgl.createProgramInfo(gl,
+      [resolveVS.sourceCode, resolveFS.sourceCode],
+      ['vs_in_position']
+    );
   }
 
   static initialize(canvas: HTMLCanvasElement): Renderer | null {
@@ -154,10 +154,16 @@ class Renderer {
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
-    gl.useProgram(this.glyphProgram.program);
 
-    twgl.setBuffersAndAttributes(gl, this.glyphProgram, this.glyphBuffer);
-    twgl.drawBufferInfo(gl, this.glyphBuffer, gl.TRIANGLES);
+    gl.useProgram(this.glyphSolidTriangleProgram.program);
+
+    twgl.setBuffersAndAttributes(gl, this.glyphSolidTriangleProgram, this.glyphSolidTriangleBuffer);
+    twgl.drawBufferInfo(gl, this.glyphSolidTriangleBuffer, gl.TRIANGLES);
+
+    gl.useProgram(this.glyphSmoothTriangleProgram.program);
+
+    twgl.setBuffersAndAttributes(gl, this.glyphSmoothTriangleProgram, this.glyphSmoothTriangleBuffer);
+    twgl.drawBufferInfo(gl, this.glyphSmoothTriangleBuffer, gl.TRIANGLES)
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
