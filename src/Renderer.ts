@@ -12,15 +12,18 @@ class Renderer {
   private glyphProgram: twgl.ProgramInfo;
   private glyphBuffer: twgl.BufferInfo;
   private fullscreenTriangle: twgl.BufferInfo;
-  private offscreenFrameBuffer: twgl.FramebufferInfo;
+  private glyphFrameBuffer: twgl.FramebufferInfo;
   private onUpdateSubscription: VoidFunction | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private gl: WebGL2RenderingContext) {
     this.render = this.render.bind(this);
 
-    const buffer = require('arraybuffer-loader!./res/TimesNewRoman.ttf');
-    const fontLoader = new FontLoader(buffer);
-    const vertexData = fontLoader.getTextVertexData('Hello World!');
+    // load font and generate text vertices
+    // format of vertex is [position.x, position.y, barycentric.s, barycentric.t]
+
+    const fontRawData = require('arraybuffer-loader!./res/TimesNewRoman.ttf');
+    const fontLoader = new FontLoader(fontRawData);
+    const vertexData = fontLoader.generateVertexData('Hello World!');
 
     // glyph pass data
 
@@ -35,13 +38,13 @@ class Renderer {
 
     // resolve pass data
 
-    this.offscreenFrameBuffer = this.createOffscreenFrameBuffer(canvas.width, canvas.height);
+    this.glyphFrameBuffer = this.createGlyphFrameBuffer(canvas.width, canvas.height);
 
     this.fullscreenTriangle = twgl.createBufferInfoFromArrays(gl, {
       vs_in_position: { numComponents: 2, data: [
-         -1, -1, 
-          3, -1,
-         -1,  3
+         -1.0, -1.0, 
+          3.0, -1.0,
+         -1.0,  3.0
       ]}
     });
 
@@ -77,15 +80,7 @@ class Renderer {
   onUpdate(cb: VoidFunction) {
     this.onUpdateSubscription = cb;
   }
-
-  destroyOffscreenFrameBuffer(): void {
-    const gl = this.gl;
-    
-    gl.deleteTexture(this.offscreenFrameBuffer.attachments[0]);
-    gl.deleteFramebuffer(this.offscreenFrameBuffer.framebuffer);
-  }
-
-  createOffscreenFrameBuffer(width: number, height: number): twgl.FramebufferInfo {
+  createGlyphFrameBuffer(width: number, height: number): twgl.FramebufferInfo {
     const gl = this.gl;
 
     const offscreenTexture = twgl.createTexture(gl, {
@@ -101,6 +96,13 @@ class Renderer {
     );
   }
 
+  destroyGlyphFrameBuffer(framebufferInfo: twgl.FramebufferInfo): void {
+    const gl = this.gl;
+    
+    gl.deleteTexture(framebufferInfo.attachments[0]);
+    gl.deleteFramebuffer(framebufferInfo.framebuffer);
+  }
+
   resizeCanvasToDisplaySize(canvas: HTMLCanvasElement): void {
     const displayWidth  = window.innerWidth;
     const displayHeight = window.innerHeight;
@@ -111,28 +113,29 @@ class Renderer {
     if (needResize) {
       canvas.width  = displayWidth;
       canvas.height = displayHeight;
-      this.destroyOffscreenFrameBuffer();
-      this.offscreenFrameBuffer = this.createOffscreenFrameBuffer(displayWidth, displayHeight);
+      this.destroyGlyphFrameBuffer(this.glyphFrameBuffer);
+      this.glyphFrameBuffer = this.createGlyphFrameBuffer(displayWidth, displayHeight);
     }
   }
 
-  render(): void {
-    this.resizeCanvasToDisplaySize(this.canvas);
+  renderGryphs(): void {
     const gl = this.gl;
 
-    twgl.bindFramebufferInfo(gl, this.offscreenFrameBuffer);
+    twgl.bindFramebufferInfo(gl, this.glyphFrameBuffer);
     gl.clearColor(0.0, 0.0, 0.0, 0.0); 
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE);
 
+    // used to render multiple text lines with different font sizes
     const fontSizesInPixels = [
       16, 32, 72, 120, 160
     ];
     const textOffsetsScreenSpace = [
       [-0.95, 0.9], [-0.95, 0.7], [-0.95, 0.4], [-0.95, 0.0], [-0.95, -0.5]
     ];
+
     const jitterPattern = [
       [-1.0 / 12.0, -5.0 / 12.0],
       [ 1.0 / 12.0,  1.0 / 12.0],
@@ -151,17 +154,18 @@ class Renderer {
     ]
 
     for (var i = 0; i < fontSizesInPixels.length; i++) {
+      // anti-aliasing loop, apply jitter & use sample mask to fill different bits framebuffer
       for (var jitterId = 0; jitterId < jitterPattern.length; jitterId++) {
         const jitterPosition = [
-          jitterPattern[jitterId][0] / this.offscreenFrameBuffer.width + textOffsetsScreenSpace[i][0],
-          jitterPattern[jitterId][1] / this.offscreenFrameBuffer.height + textOffsetsScreenSpace[i][1]
+          jitterPattern[jitterId][0] / this.glyphFrameBuffer.width  + textOffsetsScreenSpace[i][0],
+          jitterPattern[jitterId][1] / this.glyphFrameBuffer.height + textOffsetsScreenSpace[i][1]
         ]
         
         const glyphUniforms = {
           uSampleMask: sampleMask[jitterId],
           uFontScale: [
-            2.0 * fontSizesInPixels[i] / this.offscreenFrameBuffer.width, 
-            2.0 * fontSizesInPixels[i] / this.offscreenFrameBuffer.height
+            2.0 * fontSizesInPixels[i] / this.glyphFrameBuffer.width, 
+            2.0 * fontSizesInPixels[i] / this.glyphFrameBuffer.height
           ],
           uTextPosition: jitterPosition
         }
@@ -173,6 +177,10 @@ class Renderer {
         twgl.drawBufferInfo(gl, this.glyphBuffer, gl.TRIANGLES);
       }
     }
+  }
+
+  resolveGlyphFrameBuffer(): void {
+    const gl = this.gl;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -181,11 +189,19 @@ class Renderer {
     gl.useProgram(this.resolveProgram.program);
 
     const resolveUniforms = {
-      uTex: this.offscreenFrameBuffer.attachments[0]
+      uTex: this.glyphFrameBuffer.attachments[0]
     };
     twgl.setUniforms(this.resolveProgram, resolveUniforms);
     twgl.setBuffersAndAttributes(gl, this.resolveProgram, this.fullscreenTriangle);
     twgl.drawBufferInfo(gl, this.fullscreenTriangle, gl.TRIANGLES);
+
+  }
+
+  render(): void {
+    this.resizeCanvasToDisplaySize(this.canvas);
+    
+    this.renderGryphs();
+    this.resolveGlyphFrameBuffer();
 
     this.animationHandler = requestAnimationFrame(this.render);
     if (this.onUpdateSubscription !== null) this.onUpdateSubscription();

@@ -3,6 +3,9 @@
 // Definitions by: Dan Marshall <https://github.com/danmarshall>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
+// from Alexander Potapov: Had to clone ts definitions to the project as found out that 
+// the definitions from DefinitelyTyped were incomplete. So this file was edited in some places by me
+
 declare namespace opentypejs {
 
   interface Contour extends Array<Point> {
